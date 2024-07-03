@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<title>Как хранятся данные в PostgreSQL?</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/black.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+		<style>
+			img{
+				height: auto;
+				width: 75%;
+			}
+			
+		</style>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides" id="tsparticles">
+				<section>Как хранятся данные в PostgreSQL?</section>
+
+				<section>
+					<p style="font-size: 20px;">
+						template0 используется, например, для восстановления из логической резервной копии или для создания базы в другой кодировкесе и никогда не
+						должна меняться;<br>
+						template1 служит шаблоном для всех остальных баз данных, которые может
+						создать пользователь в этом кластере;<br>
+						postgres представляет собой обычную базу данных, которую можно использовать по своему усмотрению.
+					</p>
+					<img src="images/cluster.png" alt="">
+				</section>
+
+				<section>
+					<img src="images/pgdata.png" alt="" >
+				</section>
+
+				<section>
+					<img src="images/crdb.png" alt="">
+				</section>
+
+				<section>
+					<img src="images/crcopy.png" alt="">
+				</section>
+
+				<section>
+					Системный каталог
+					<img src="images/system-catalogs.png" alt="">
+				</section>
+
+				<section>
+					<img src="images/schema.png" alt="">
+				</section>
+				
+				<section>
+					<p style="font-size: 24px;">Кроме пользовательских схем, имеется несколько специальных служебных:</p>
+					<img src="images/scheme2.png" alt="" style="height: 600px;">
+				</section>
+
+				<section>
+					<p style="font-size: 24px;">При инициализации кластера создаются два табличных пространства:</p>
+					<ul style="font-size: 15px; text-decoration: none;">
+						<li><b>pg_default</b> располагается в каталоге PGDATA/base и используется как табличное пространство по умолчанию, <br>если явно не выбрать для этой цели другое пространство;</li>
+						<li><b>pg_global</b> располагается в каталоге PGDATA/global и хранит общие для всего кластера объекты системного каталога.</li>
+					</ul>
+					<img src="images/namespace.png" alt="" style="height: 500px;">
+				</section>
+				
+				<section>
+					<pre>
+						<code data-trim data-noescape>
+							CREATE TABLESPACE fastspace LOCATION '/ssd1/postgresql/data';
+							CREATE INDEX code_idx ON films (code) TABLESPACE fastspace;
+						</code>
+					</pre>
+					<img src="images/new_tablespace.png" alt="" style="height: 500px;">
+				</section>
+
+				<section>
+					<img src="images/layers.png" alt="">
+				</section>
+
+				<section>
+					<img src="images/layers-large.png" alt="" style="height: auto; width: 50%;">
+				</section>
+
+				<section>
+					<img src="images/tblspace.png" class="r-stretch">
+					
+				</section>
+
+				<section>
+					<img src="images/main-layers.png">
+				</section>
+
+				<section>
+					asd!!
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+				slideNumber: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tsparticles/3.5.0/tsparticles.bundle.min.js" integrity="sha512-dAcjIzQJfQUV1WljsyVr4c7nzdqmGiNSEM8IUBvSz37GvmwbSWxXJv9MNqL+yQyI70XAk4DDz91OsyCdqyGbNQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+		<script type="module" src="particles.js"></script>
+	</body>
+</html>
