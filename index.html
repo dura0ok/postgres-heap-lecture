@@ -20,20 +20,28 @@
 			
 		</style>
 	</head>
-	<body>
-		<div class="reveal">
-			<div class="slides" id="tsparticles">
+		<body>
+			<div class="reveal" id="tsparticles">
+			<div class="slides" >
 				<section>Как хранятся данные в PostgreSQL?</section>
 
 				<section>
+					<img src="images/qr.png" alt="" class="r-stretch">
+				</section>
+
+				<section>
 					<p style="font-size: 20px;">
-						template0 используется, например, для восстановления из логической резервной копии или для создания базы в другой кодировкесе и никогда не
+						template0 используется, например, для восстановления из логической резервной копии или для создания базы в другой кодировке и никогда не
 						должна меняться;<br>
 						template1 служит шаблоном для всех остальных баз данных, которые может
 						создать пользователь в этом кластере;<br>
 						postgres представляет собой обычную базу данных, которую можно использовать по своему усмотрению.
 					</p>
 					<img src="images/cluster.png" alt="">
+
+					<aside class="notes">
+						
+					</aside>
 				</section>
 
 				<section>
@@ -42,6 +50,10 @@
 
 				<section>
 					<img src="images/crdb.png" alt="">
+				</section>
+
+				<section>
+					<img src="images/db_structure.png" alt="">
 				</section>
 
 				<section>
@@ -85,22 +97,731 @@
 					<img src="images/layers.png" alt="">
 				</section>
 
-				<section>
+				
+
+				<!-- <section>
 					<img src="images/layers-large.png" alt="" style="height: auto; width: 50%;">
 				</section>
 
 				<section>
 					<img src="images/tblspace.png" class="r-stretch">
 					
-				</section>
+				</section> -->
 
 				<section>
 					<img src="images/main-layers.png">
 				</section>
+				
+				<section>
+					<pre style="font-size: 15px;">
+						<code data-trim data-noescape>
+							CREATE TABLE IF NOT EXISTS test_table (
+								id SERIAL PRIMARY KEY,
+								text_column TEXT
+							);
+
+							INSERT INTO  test_table (text_column ) VALUES  ('HELLO WORLD' );
+							INSERT INTO test_table (text_column)
+							SELECT md5(random()::text)
+							FROM generate_series(1, 99) AS gs;
+						</code>
+					</pre>
+				</section>
 
 				<section>
-					asd!!
+					<pre style="font-size: 15px;">
+						<code data-trim data-noescape>
+							postgres=# SELECT * FROM pg_database WHERE datname = 'postgres'\gx
+							-[ RECORD 1 ]--+------------
+							oid            | 5
+							datname        | postgres
+							datdba         | 10
+							encoding       | 6
+							datlocprovider | c
+							datistemplate  | f
+							datallowconn   | t
+							dathasloginevt | f
+							datconnlimit   | -1
+							datfrozenxid   | 740
+							datminmxid     | 1
+							dattablespace  | 1663
+							datcollate     | ru_RU.UTF-8
+							datctype       | ru_RU.UTF-8
+							datlocale      | 
+							daticurules    | 
+							datcollversion | 2.35
+							datacl         | 
+						</code>
+					</pre>
 				</section>
+				
+
+				<section>
+					<pre style="font-size: 15px;">
+						<code data-trim data-noescape>
+							postgres=# SELECT * FROM pg_class where relname = 'test_table'\gx
+							-[ RECORD 1 ]-------------------------
+							oid                 | 16434
+							relname             | test_table
+							relnamespace        | 2200
+							reltype             | 16436
+							reloftype           | 0
+							relowner            | 10
+							relam               | 2
+							relfilenode         | 16434
+							reltablespace       | 0
+							relpages            | 0
+							reltuples           | -1.0
+							relallvisible       | 0
+							reltoastrelid       | 16438
+							relhasindex         | True
+							relisshared         | False
+							relpersistence      | p
+							relkind             | r
+							relnatts            | 2
+							relchecks           | 0
+							relhasrules         | False
+							relhastriggers      | False
+							relhassubclass      | False
+							relrowsecurity      | False
+							relforcerowsecurity | False
+							relispopulated      | True
+							relreplident        | d
+							relispartition      | False
+							relrewrite          | 0
+							relfrozenxid        | 750
+							relminmxid          | 1
+							relacl              | <null>
+							reloptions          | <null>
+							relpartbound        | <null>
+
+						</code>
+					</pre>
+				</section>
+
+				<section>
+					<pre style="font-size: 15px;">
+						<code data-trim data-noescape>
+							postgres=# select pg_relation_filepath('test_table');
+							pg_relation_filepath 
+							----------------------
+							base/5/16434
+							(1 row)	
+						</code>
+					</pre>
+				</section>
+
+				<section>
+					<h1 style="font-size: 30px;">Table</h1>
+					<img src="images/table_file.png" alt="">
+				</section>
+
+				<section>
+					<h1 style="font-size: 30px;">Heap</h1>
+					<img src="images/heap_file_page.png" alt="">
+				</section>
+
+				<section>
+					<pre style="font-size: 18px;">
+						<code data-trim data-noescape>
+							// src/include/storage/itemid.h
+							typedef struct ItemIdData
+							{
+								unsigned	lp_off:15,		/* offset to tuple (from start of page) */
+											lp_flags:2,		/* state of line pointer, see below */
+											lp_len:15;		/* byte length of tuple */
+							} ItemIdData;
+							
+							//  src/include/storage/block.h
+							typedef uint32 BlockNumber;
+							typedef struct BlockIdData
+							{
+								uint16		bi_hi;
+								uint16		bi_lo;
+							} BlockIdData;
+						</code>
+					</pre>
+				</section>
+				
+
+				<section>
+					<img src="images/page_structure.png" alt="">
+				</section>
+
+				<section>
+					<pre style="font-size: 18px;">
+						<code data-trim data-noescape>
+							// src/include/storage/bufpage.h
+							typedef struct PageHeaderData
+							{
+								/* XXX LSN is member of *any* block, not only page-organized ones */
+								PageXLogRecPtr pd_lsn;		/* LSN: next byte after last byte of xlog
+															* record for last change to this page */
+								uint16		pd_checksum;	/* checksum */
+								uint16		pd_flags;		/* flag bits, see below */
+								LocationIndex pd_lower;		/* offset to start of free space */
+								LocationIndex pd_upper;		/* offset to end of free space */
+								LocationIndex pd_special;	/* offset to start of special space */
+								uint16		pd_pagesize_version;
+								TransactionId pd_prune_xid; /* oldest prunable XID, or zero if none */
+								ItemIdData	pd_linp[FLEXIBLE_ARRAY_MEMBER]; /* line pointer array */
+							} PageHeaderData;
+						</code>
+					</pre>
+				</section>
+
+				<section>
+					<h1 style="font-size: 30px;">Обращение к куче при запросах</h1>
+					<img src="images/data_read.png" alt="">
+				</section>
+
+				<section>
+					<h1 style="font-size: 50px;">Tuple</h1>
+					<ul>
+						<li>tuple = header + user data</li>
+						<li>tuple почти никогда не обновляется (БД может, мы нет)</li>
+						<li>DELETE = UPDATE xmax</li>
+						<li>UPDATE = INSERT + DELETE</li>
+					</ul>
+				</section>
+
+				<section>
+					<pre style="font-size: 15px;">
+						<code data-trim data-noescape>
+							SELECT ctid, xmin, xmax, * FROM test_table;
+							ctid   | xmin | xmax |  ctid   | id  |           text_column            
+							---------+------+------+---------+-----+----------------------------------
+							(0,1)   |  739 |    0 | (0,1)   |   1 | HELLO WORLD
+							(0,2)   |  740 |    0 | (0,2)   |   2 | f47b7fef03784f640697705f02fe427b
+							(0,3)   |  740 |    0 | (0,3)   |   3 | d318ba417b95f1b041b63248ac0875c0
+							(0,4)   |  740 |    0 | (0,4)   |   4 | 5791ca8eb2cab64331d7476190529ead
+		
+						</code>
+					</pre>
+				</section>
+
+				<section>
+					<pre style="font-size: 15px;">
+						<code data-trim data-noescape>
+							postgres=# UPDATE test_table SET text_column = 'HELLO WORLD2' WHERE id = 2;
+							postgres=# SELECT ctid, xmin, xmax, * FROM test_table ORDER BY id;
+							ctid   | xmin | xmax | id  |           text_column            
+							---------+------+------+-----+----------------------------------
+							 (0,1)   |  739 |    0 |   1 | HELLO WORLD
+							 (0,101) |  742 |    0 |   2 | HELLO WORLD2
+							 (0,3)   |  740 |    0 |   3 | d318ba417b95f1b041b63248ac0875c0
+							 (0,4)   |  740 |    0 |   4 | 5791ca8eb2cab64331d7476190529ead							
+							
+						</code>
+					</pre>
+				</section>
+
+				<section>
+					<pre style="font-size: 15px;">
+						<code data-trim data-noescape>
+							SELECT * FROM page_header(get_raw_page('public.test_table', 0));
+							lsn    | checksum | flags | lower | upper | special | pagesize | version | prune_xid 
+						-----------+----------+-------+-------+-------+---------+----------+---------+-----------
+						0/15B1450 |        0 |     0 |   428 |  1768 |    8192 |     8192 |       4 |       754
+						(1 row)
+
+						</code>
+					</pre>
+
+					<aside class="notes">
+						<ul>
+							<li><strong>lsn</strong>: Log Sequence Number (LSN) - уникальный идентификатор, используемый для отслеживания состояния журнала изменений. В данном случае, значение "0/15B1450" означает определенную позицию в журнале транзакций.</li>
+							<li><strong>checksum</strong>: Контрольная сумма - значение, используемое для проверки целостности страницы данных. Значение "0" указывает на отсутствие ошибки при проверке целостности.</li>
+							<li><strong>flags</strong>: Флаги - специальные маркеры, указывающие на различные состояния страницы. Значение "0" означает, что флаги не установлены.</li>
+							<li><strong>lower</strong>: Нижняя граница свободного пространства - смещение, указывающее начало свободного пространства на странице. Значение "428" означает, что свободное пространство начинается с байта 428.</li>
+							<li><strong>upper</strong>: Верхняя граница свободного пространства - смещение, указывающее конец свободного пространства на странице. Значение "1768" означает, что свободное пространство заканчивается на байте 1768.</li>
+							<li><strong>special</strong>: Специальная область - смещение, указывающее начало специальной области на странице. Обычно используется для хранения служебной информации. Значение "8192" означает, что специальная область начинается с байта 8192.</li>
+							<li><strong>pagesize</strong>: Размер страницы - общий размер страницы данных в байтах. Значение "8192" указывает, что размер страницы составляет 8192 байта.</li>
+							<li><strong>version</strong>: Версия страницы - версия формата страницы. Значение "4" указывает на использование четвертой версии формата страницы.</li>
+							<li><strong>prune_xid</strong>: Преимущественный идентификатор транзакции для очистки - идентификатор транзакции, до которой были обрезаны старые данные. Значение "754" означает, что все транзакции до 754 были очищены или обрезаны.</li>
+						  </ul>
+						  
+					</aside>
+				</section>
+
+
+				<section>
+					<pre style="font-size: 15px;">
+						<code data-trim data-noescape>
+							SELECT t_attrs
+							FROM heap_page_item_attrs(get_raw_page('test_table', 0), 'test_table'::regclass, true);
+
+							SELECT CONVERT_FROM(DECODE(SUBSTRING(t_attrs[2]::text FROM 3), 'hex'), 'UTF8') 
+							FROM heap_page_item_attrs(get_raw_page('test_table', 0), 'test_table'::regclass, true);
+
+							HELLO WORLD
+							5c6f2ab6fc2a42652ff807d67279fb69
+							38e34758b6783f06576614db2948dc0f
+							eb52d7e71c00fb27f3b9796555a779ed
+							efae7f69701112f0b496d90209d5f6b7
+							....
+							....
+							7af14e7c5005fa2f4850eeda682f3a68
+							HELLO WORLD2
+							(101 rows)
+						</code>
+					</pre>
+				</section>
+
+				<section>
+					<img src="images/toast-meme.jpeg" alt="" style="height: 600px;">
+				</section>
+
+				<section>
+					<img src="images/toast_chunks.png" alt="" >
+				</section>
+
+				<section>
+					<pre style="font-size: 15px;">
+						<code data-trim data-noescape>
+							postgres=# SELECT relname
+							FROM pg_class
+							WHERE relnamespace = 'public'::regnamespace
+							AND relname LIKE 'pg_toast_%'
+							AND reltoastrelid = 'public.test_table'::regclass;
+							relname 
+							---------
+							(0 rows)
+						</code>
+					</pre>
+				</section>
+				
+				<section>
+					<pre style="font-size: 15px;">
+						<code data-trim data-noescape>
+							SELECT relnamespace::regnamespace, relname
+							FROM pg_class WHERE oid = (
+							SELECT reltoastrelid FROM pg_class WHERE relname = 'test_table'
+							);
+							relnamespace |    relname     
+							--------------+----------------
+							pg_toast     | pg_toast_16434
+						</code>
+					</pre>
+				</section>
+
+				<section>
+					<pre style="font-size: 15px;">
+						<code data-trim data-noescape>
+							postgres=# UPDATE test_table                           
+							SET text_column = (
+								SELECT string_agg(chr(trunc(65 + random() * 26)::integer), '')
+								FROM generate_series(1, 5000)
+							)
+							RETURNING left(test_table.text_column, 10) || '...' || right(test_table.text_column, 10);
+
+						</code>
+					</pre>
+				</section>
+
+				<section>
+					<pre style="font-size: 15px;">
+						<code data-trim data-noescape>
+							SELECT chunk_id,
+							chunk_seq,
+							length(chunk_data),
+							left(encode(chunk_data,'escape')::text, 10) || '...' ||
+							right(encode(chunk_data,'escape')::text, 10)
+							FROM pg_toast.pg_toast_16434;
+
+							chunk_id | chunk_seq | length |        ?column?         
+							----------+-----------+--------+-------------------------
+								16755 |         0 |   1996 | MBDOFXFDIG...GVQLXBIKSD
+								16755 |         1 |   1996 | APCPZXDYWB...WFVSPVRZNP
+								16755 |         2 |   1008 | GVIAGQUBMB...NYVRKIKSCJ
+								16756 |         0 |   1996 | MBDOFXFDIG...GVQLXBIKSD
+								16756 |         1 |   1996 | APCPZXDYWB...WFVSPVRZNP
+								16756 |         2 |   1008 | GVIAGQUBMB...NYVRKIKSCJ
+								16757 |         0 |   1996 | MBDOFXFDIG...GVQLXBIKSD
+						</code>
+					</pre>
+				</section>
+
+
+
+
+				<section>
+					<h2 class="r-fit-text">Карта видимости(visibility map)</h2>
+				</section>
+				
+				<section>
+					<img src="images/vm.png" alt="">
+				</section>
+
+				<section>
+					<h3 class="r-fit-text">на каждую табличную страницу в слое определены два бита:</h3>
+					<ol style="font-size: 24px;">
+						<li>Страницы, которые содержат только актуальные версии строк.</li>
+						<li>Все версии строк заморожены.</li>
+					  </ol>
+
+					  <p class="r-fit-text">VM оптимизирует работу VACUUM, помечая некоторые страницы "полностью видимыми" (проставлена единица в битовой карте). В такие страницы VACUUM не заходит при сканировании таблицы. Бит видимости проставляется при выполнении VACUUM и снимается при выполнении операций INSERT, UPDATE, DELETE.</p>
+					
+					<pre style="font-size: 20px;">
+						<code data-trim data-noescape>
+							// src/backend/access/heap/visibilitymap.c
+							/* Masks for counting subsets of bits in the visibility map. */
+							#define VISIBLE_MASK8	(0x55)	/* The lower bit of each bit pair */
+							#define FROZEN_MASK8	(0xaa)	/* The upper bit of each bit pair */
+						</code>
+					</pre>
+				</section>
+
+				<section>
+					<pre style="font-size: 18px;">
+						<code data-trim data-noescape>
+							// src/backend/access/heap/visibilitymap.c
+							* INTERFACE ROUTINES
+							*		visibilitymap_clear  - clear bits for one page in the visibility map
+							*		visibilitymap_pin	 - pin a map page for setting a bit
+							*		visibilitymap_pin_ok - check whether correct map page is already pinned
+							*		visibilitymap_set	 - set a bit in a previously pinned page
+							*		visibilitymap_get_status - get status of bits
+							*		visibilitymap_count  - count number of bits set in visibility map
+							*		visibilitymap_prepare_truncate -
+							*			prepare for truncation of the visibility map
+						</code>
+					</pre>
+				</section>
+
+
+				<section>
+					<h1 style="font-size: 33px;">Free space MAP</h1>
+					<img src="images/fsm.png" alt="">
+					<p style="font-size: 18px;">
+						Каждая таблица имеет FSM файл ((filenode)_ fsm), который хранит информацию о свободном месте, доступном в таблице. Информация в этом файле обновляется такими операциями, как VACUUM и вообще говоря может быть не абсолютно точной. FSM показывает, какие элементы были удалены или обновлены и их место может быть повторно переиспользовано. Данные в FSM организованы в виде дерева (в листьях хранится число свободных элементов на странице), чтобы можно было быстро найти страницу с требуемым числом свободных элементов.
+					</p>
+				</section>
+
+				<section>
+					<h3  style="font-size: 24px;">Подсчёт битов видимости</h3>
+					<pre style="font-size: 15px;">
+						<code data-trim data-noescape>
+					void
+					visibilitymap_count(Relation rel, BlockNumber *all_visible, BlockNumber *all_frozen)
+					{
+						BlockNumber mapBlock;
+						BlockNumber nvisible = 0;
+						BlockNumber nfrozen = 0;
+
+						/* all_visible must be specified */
+						Assert(all_visible);
+
+						for (mapBlock = 0;; mapBlock++)
+						{
+							Buffer		mapBuffer;
+							uint64	   *map;
+
+							/*
+							* Read till we fall off the end of the map.  We assume that any extra
+							* bytes in the last page are zeroed, so we don't bother excluding
+							* them from the count.
+							*/
+							mapBuffer = vm_readbuf(rel, mapBlock, false);
+							if (!BufferIsValid(mapBuffer))
+								break;
+
+							/*
+							* We choose not to lock the page, since the result is going to be
+							* immediately stale anyway if anyone is concurrently setting or
+							* clearing bits, and we only really need an approximate value.
+							*/
+							map = (uint64 *) PageGetContents(BufferGetPage(mapBuffer));
+
+							nvisible += pg_popcount_masked((const char *) map, MAPSIZE, VISIBLE_MASK8);
+							if (all_frozen)
+								nfrozen += pg_popcount_masked((const char *) map, MAPSIZE, FROZEN_MASK8);
+
+							ReleaseBuffer(mapBuffer);
+						}
+
+						*all_visible = nvisible;
+						if (all_frozen)
+						*all_frozen = nfrozen;
+					}
+						</code>
+					</pre>
+				</section>
+				
+				<section>
+					<pre style="font-size: 15px;">
+						<code data-trim data-noescape>
+							//  src/backend/storage/page/bufpage.c
+							OffsetNumber
+						PageAddItemExtended(Page page,
+											Item item,
+											Size size,
+											OffsetNumber offsetNumber,
+											int flags)
+						{
+							PageHeader	phdr = (PageHeader) page;
+							Size		alignedSize;
+							int			lower;
+							int			upper;
+							ItemId		itemId;
+							OffsetNumber limit;
+							bool		needshuffle = false;
+
+							/*
+							* Be wary about corrupted page pointers
+							*/
+							if (phdr->pd_lower < SizeOfPageHeaderData ||
+								phdr->pd_lower > phdr->pd_upper ||
+								phdr->pd_upper > phdr->pd_special ||
+								phdr->pd_special > BLCKSZ)
+								ereport(PANIC,
+										(errcode(ERRCODE_DATA_CORRUPTED),
+										errmsg("corrupted page pointers: lower = %u, upper = %u, special = %u",
+												phdr->pd_lower, phdr->pd_upper, phdr->pd_special)));
+
+							/*
+							* Select offsetNumber to place the new item at
+							*/
+							limit = OffsetNumberNext(PageGetMaxOffsetNumber(page));
+
+							/* was offsetNumber passed in? */
+							if (OffsetNumberIsValid(offsetNumber))
+							{
+								/* yes, check it */
+								if ((flags & PAI_OVERWRITE) != 0)
+								{
+									if (offsetNumber < limit)
+									{
+										itemId = PageGetItemId(page, offsetNumber);
+										if (ItemIdIsUsed(itemId) || ItemIdHasStorage(itemId))
+										{
+											elog(WARNING, "will not overwrite a used ItemId");
+											return InvalidOffsetNumber;
+										}
+									}
+								}
+								else
+								{
+									if (offsetNumber < limit)
+										needshuffle = true; /* need to move existing linp's */
+								}
+							}
+							else
+							{
+								/* offsetNumber was not passed in, so find a free slot */
+								/* if no free slot, we'll put it at limit (1st open slot) */
+								if (PageHasFreeLinePointers(page))
+								{
+									/*
+									* Scan line pointer array to locate a "recyclable" (unused)
+									* ItemId.
+									*
+									* Always use earlier items first.  PageTruncateLinePointerArray
+									* can only truncate unused items when they appear as a contiguous
+									* group at the end of the line pointer array.
+									*/
+									for (offsetNumber = FirstOffsetNumber;
+										offsetNumber < limit;	/* limit is maxoff+1 */
+										offsetNumber++)
+									{
+										itemId = PageGetItemId(page, offsetNumber);
+
+										/*
+										* We check for no storage as well, just to be paranoid;
+										* unused items should never have storage.  Assert() that the
+										* invariant is respected too.
+										*/
+										Assert(ItemIdIsUsed(itemId) || !ItemIdHasStorage(itemId));
+
+										if (!ItemIdIsUsed(itemId) && !ItemIdHasStorage(itemId))
+											break;
+									}
+									if (offsetNumber >= limit)
+									{
+										/* the hint is wrong, so reset it */
+										PageClearHasFreeLinePointers(page);
+									}
+								}
+								else
+								{
+									/* don't bother searching if hint says there's no free slot */
+									offsetNumber = limit;
+								}
+							}
+
+							/* Reject placing items beyond the first unused line pointer */
+							if (offsetNumber > limit)
+							{
+								elog(WARNING, "specified item offset is too large");
+								return InvalidOffsetNumber;
+							}
+
+							/* Reject placing items beyond heap boundary, if heap */
+							if ((flags & PAI_IS_HEAP) != 0 && offsetNumber > MaxHeapTuplesPerPage)
+							{
+								elog(WARNING, "can't put more than MaxHeapTuplesPerPage items in a heap page");
+								return InvalidOffsetNumber;
+							}
+
+							/*
+							* Compute new lower and upper pointers for page, see if it'll fit.
+							*
+							* Note: do arithmetic as signed ints, to avoid mistakes if, say,
+							* alignedSize > pd_upper.
+							*/
+							if (offsetNumber == limit || needshuffle)
+								lower = phdr->pd_lower + sizeof(ItemIdData);
+							else
+								lower = phdr->pd_lower;
+
+							alignedSize = MAXALIGN(size);
+
+							upper = (int) phdr->pd_upper - (int) alignedSize;
+
+							if (lower > upper)
+								return InvalidOffsetNumber;
+
+							/*
+							* OK to insert the item.  First, shuffle the existing pointers if needed.
+							*/
+							itemId = PageGetItemId(page, offsetNumber);
+
+							if (needshuffle)
+								memmove(itemId + 1, itemId,
+										(limit - offsetNumber) * sizeof(ItemIdData));
+
+							/* set the line pointer */
+							ItemIdSetNormal(itemId, upper, size);
+
+							/*
+							* Items normally contain no uninitialized bytes.  Core bufpage consumers
+							* conform, but this is not a necessary coding rule; a new index AM could
+							* opt to depart from it.  However, data type input functions and other
+							* C-language functions that synthesize datums should initialize all
+							* bytes; datumIsEqual() relies on this.  Testing here, along with the
+							* similar check in printtup(), helps to catch such mistakes.
+							*
+							* Values of the "name" type retrieved via index-only scans may contain
+							* uninitialized bytes; see comment in btrescan().  Valgrind will report
+							* this as an error, but it is safe to ignore.
+							*/
+							VALGRIND_CHECK_MEM_IS_DEFINED(item, size);
+
+							/* copy the item's data onto the page */
+							memcpy((char *) page + upper, item, size);
+
+							/* adjust page header */
+							phdr->pd_lower = (LocationIndex) lower;
+							phdr->pd_upper = (LocationIndex) upper;
+
+							return offsetNumber;
+						}
+						</code>
+					</pre>
+				</section>
+
+
+				<section>
+					<pre style="font-size: 15px;">
+						<code data-trim data-noescape>
+							#include "postgres.h"
+							#include "fmgr.h"
+							#include "access/htup_details.h"
+							#include "access/xact.h"
+							#include "catalog/pg_type.h"
+							#include "commands/sequence.h"
+							#include "utils/rel.h"
+							#include "utils/elog.h"
+							#include "utils/builtins.h"
+							#include "access/table.h"
+							#include "catalog/namespace.h"
+							#include "utils/lsyscache.h"
+							#include "access/heapam.h"
+
+							#ifdef PG_MODULE_MAGIC
+							PG_MODULE_MAGIC;
+							#endif
+
+							PG_FUNCTION_INFO_V1(heap_inserted);
+
+							Datum
+							heap_inserted(PG_FUNCTION_ARGS)
+							{
+								char *input = text_to_cstring(PG_GETARG_TEXT_PP(0));
+								Relation rel;
+								HeapTuple tuple;
+								Datum values[2];
+								bool nulls[2] = {false, false};
+								TupleDesc tupdesc;
+								Oid relid;
+								Oid seqid;
+								int64 new_id;
+
+								// For demonstration, we assume the relation is hardcoded.
+								relid = RelnameGetRelid("heap_test");
+								if (relid == InvalidOid)
+								{
+									elog(ERROR, "Relation not found");
+								}
+
+								rel = table_open(relid, RowExclusiveLock);
+								tupdesc = RelationGetDescr(rel);
+
+								// Get the sequence OID for the id column
+								seqid = get_relname_relid("heap_test_id_seq", get_rel_namespace(relid));
+								if (seqid == InvalidOid)
+								{
+									elog(ERROR, "Sequence not found");
+								}
+
+								// Get the next value from the sequence
+								new_id = nextval_internal(seqid, true);
+
+								// Fill the values array with the new ID and input text
+								values[0] = Int64GetDatum(new_id);
+								values[1] = CStringGetTextDatum(input);
+								tuple = heap_form_tuple(tupdesc, values, nulls);
+
+								// Insert the tuple into the relation
+								simple_heap_insert(rel, tuple);
+
+								// Make the changes visible
+								CommandCounterIncrement();
+
+								// Close the relation
+								table_close(rel, RowExclusiveLock);
+
+								PG_RETURN_VOID();
+							}
+						</code>
+					</pre>
+				</section>
+
+				<section>
+					<h1 style="font-size: 30px;">Задача - Access Scan Column HEAP</h1>
+					<section>
+						<pre style="font-size: 15px;">
+							<code data-trim data-noescape>
+								SELECT access_scan_column('table_name'::regclass, 'column_name');
+							</code>
+						</pre>
+						<img src="images/exptected.png" alt="">
+					</section>
+				</section>
+
+				<section>
+					<h1 style="font-size: 30px;">Задача - Access Scan Column HEAP</h1>
+					<ul>
+						<li>PG_GETARG_OID, PG_GETARG_TEXT_PP</li>
+						<li>text_to_cstring</li>
+						<li>relation_open, RelationGetDescr</li>
+						<li>SPI_fnumber или цикл по RelationGetDescr->natts TupleDescAttr и сверка с column_name</li>
+						<li>table_beginscan, heap_getnext, heap_getattr</li>
+						<li>elog, TextDatumGetCString, DatumGetInt32</li>
+						<li>table_endscan, relation_close</li>
+					</ul>
+				</section>
+
 			</div>
 		</div>
 
@@ -121,8 +842,21 @@
 			});
 		</script>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/tsparticles/3.5.0/tsparticles.bundle.min.js" integrity="sha512-dAcjIzQJfQUV1WljsyVr4c7nzdqmGiNSEM8IUBvSz37GvmwbSWxXJv9MNqL+yQyI70XAk4DDz91OsyCdqyGbNQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-
-		<script type="module" src="particles.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tsparticles@1.15.1/dist/tsparticles.min.js"></script>
+		<script async defer>
+		tsParticles.load("tsparticles", {
+			particles: {
+			links: {
+				enable: true
+			},
+			move: {
+				enable: true
+			},
+			size: {
+				value: 4
+			}
+			}
+		});
+		</script>
 	</body>
 </html>
