@@ -800,10 +800,7 @@
 								bool nulls[2] = {false, false};
 								TupleDesc tupdesc;
 								Oid relid;
-								Oid seqid;
-								int64 new_id;
 
-								// For demonstration, we assume the relation is hardcoded.
 								relid = RelnameGetRelid("heap_test");
 								if (relid == InvalidOid)
 								{
@@ -813,28 +810,12 @@
 								rel = table_open(relid, RowExclusiveLock);
 								tupdesc = RelationGetDescr(rel);
 
-								// Get the sequence OID for the id column
-								seqid = get_relname_relid("heap_test_id_seq", get_rel_namespace(relid));
-								if (seqid == InvalidOid)
-								{
-									elog(ERROR, "Sequence not found");
-								}
-
-								// Get the next value from the sequence
-								new_id = nextval_internal(seqid, true);
-
-								// Fill the values array with the new ID and input text
-								values[0] = Int64GetDatum(new_id);
+								values[0] = 1;
 								values[1] = CStringGetTextDatum(input);
 								tuple = heap_form_tuple(tupdesc, values, nulls);
 
-								// Insert the tuple into the relation
 								simple_heap_insert(rel, tuple);
 
-								// Make the changes visible
-								CommandCounterIncrement();
-
-								// Close the relation
 								table_close(rel, RowExclusiveLock);
 
 								PG_RETURN_VOID();
