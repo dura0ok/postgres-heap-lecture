@@ -848,7 +848,7 @@
 						<li>text_to_cstring</li>
 						<li>relation_open, RelationGetDescr</li>
 						<li>SPI_fnumber или цикл по RelationGetDescr->natts TupleDescAttr и сверка с column_name</li>
-						<li>table_beginscan, heap_getnext, heap_getattr</li>
+						<li>table_beginscan, heap_getnext, heap_getattr(column_number)</li>
 						<li>elog, TextDatumGetCString, DatumGetInt32</li>
 						<li>table_endscan, relation_close</li>
 					</ul>
