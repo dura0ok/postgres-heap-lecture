@@ -1,170 +1,146 @@
 <!doctype html>
 <html lang="en">
-	<head>
-		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-
-		<title>Как хранятся данные в PostgreSQL?</title>
-
-		<link rel="stylesheet" href="dist/reset.css">
-		<link rel="stylesheet" href="dist/reveal.css">
-		<link rel="stylesheet" href="dist/theme/black.css">
-
-		<!-- Theme used for syntax highlighted code -->
-		<link rel="stylesheet" href="plugin/highlight/monokai.css">
-		<style>
-			img{
-				height: auto;
-				width: 75%;
-			}
-			
-		</style>
-	</head>
-		<body>
-			<div class="reveal" id="tsparticles">
-			<div class="slides" >
-				<section>Как хранятся данные в PostgreSQL?</section>
-
-				<section>
-					<p style="font-size: 24px;">QR код на сайт</p>
-					<img src="images/qr.png" alt="" class="r-stretch">
-				</section>
-
-				<section>
-					<p style="font-size: 24px;">Устройство PGDATA</p>
-					<img src="images/pgdata.png" alt="" >
-				</section>
-
-				<section>
-					<p style="font-size: 20px;">
-						template0 используется, например, для восстановления из логической резервной копии или для создания базы в другой кодировке и никогда не
-						должна меняться;<br>
-						template1 служит шаблоном для всех остальных баз данных, которые может
-						создать пользователь в этом кластере;<br>
-						postgres представляет собой обычную базу данных, которую можно использовать по своему усмотрению.
-					</p>
-					<img src="images/cluster.png" alt="">
-					<aside class="notes">
-					<p><strong>Кластер PostgreSQL</strong> — это набор всех баз данных и служебных файлов, размещённых в каталоге <strong>PGDATA</strong>, указанном через одноимённую переменную окружения.</p>
-					<p><strong>Базы данных по умолчанию</strong></p>
-					<ul>
-						<li><code>template0</code> — неизменяемая, используется для восстановления и смены кодировки.</li>
-						<li><code>template1</code> — шаблон для всех новых баз данных.</li>
-						<li><code>postgres</code> — обычная база данных для использования по умолчанию.</li>
-					</ul>
-
-					Поскольку для выполнения команды CREATE DATABASE необходимо подключение к серверу базы данных, возникает вопрос как создать самую первую базу данных. Первая база данных всегда создаётся командой initdb при инициализации пространства хранения данных (см. документацию.) Эта база данных называется postgres. Далее для создания первой «обычной» базы данных можно подключиться к postgres.
-
-База данных postgres используется пользователями и приложениями для подключения по умолчанию. Представляет собой всего лишь копию template1, и может быть удалена и повторно создана при необходимости.
-
-Две дополнительные базы данных template1 и template0 также создаются во время инициализации кластера. При каждом создании новой базы данных в рамках кластера по факту производится клонирование шаблона template1. При этом любые изменения, сделанные в template1, распространяются на все созданные впоследствии базы данных. Следует избегать создания объектов в template1, за исключением ситуации, когда их необходимо автоматически добавлять в новые базы. База template0 представляет собой чистую копию исходного содержимого template1. Поэтому её можно клонировать вместо template1, когда важно создать базу данных без каких‑либо локальных дополнений.
-					</aside>
-				</section>
-
-
-				<section>
-					<p style="font-size: 24px;"><code>CREATE database users;</code></p>
-					<img src="images/crdb.png" alt="">
-					<aside class="notes">
-					<p><strong>CREATE DATABASE</strong> выполняет копирование существующей базы данных.</p>
-					<p>По умолчанию копируется <code>template1</code>.</p>
-					</aside>
-				</section>
-
-				<section>
-					<p style="font-size: 24px;"><code>CREATE DATABASE new TEMPLATE users;</code></p>
-					<img src="images/crcopy.png" alt="">
-					<aside class="notes">
-					<p><code>template0</code> — вторая системная база, изначально совпадает с <code>template1</code>, но не изменяется после инициализации.</p>
-					<p>Если указать <code>template0</code> при <code>CREATE DATABASE</code>, создаётся "чистая" база — без пользовательских объектов.</p>
-					<p>Можно использовать любую существующую базу в качестве шаблона:</p>
-					</aside>
-				</section>
-
-				<section>
-					<p style="font-size: 24px;">Системный каталог</p>
-					<img src="images/system-catalogs.png" alt="">
-					<aside class="notes">
-					<p>Системные каталоги содержат метаданные базы данных (таблицы, столбцы и др.).</p>
-					<p>Это обычные таблицы, но модифицировать их вручную не рекомендуется — используйте SQL-команды.</p>
-					<p>Например, <code>CREATE DATABASE</code> добавляет запись в <code>pg_database</code>.</p>
-					<p>Каждая база данных имеет свой набор системных каталогов, но есть и общие для всего кластера (с ID 0).</p>
-					</aside>
-				</section>
-
-				<section>
-					<p style="font-size: 24px;">Schema (namespace)</p>
-					<img src="images/schema.png" alt="">
-					<aside class="notes">
-					<p>Схемы — пространства имён внутри базы данных. Хранят таблицы, типы, функции и др.</p>
-					<p>База может содержать несколько схем.</p>
-					<p>Одни и те же имена объектов допустимы в разных схемах и базах данных.</p>
-					</aside>
-				</section>
-				
-				<section>
-					<p style="font-size: 24px;">Кроме пользовательских схем, имеется несколько специальных служебных:</p>
-					<img src="images/scheme2.png" alt="" style="height: 600px;">
-					<aside class="notes">
-				<p>Кроме пользовательских, есть специальные схемы:</p>
-				<ul>
-					<li><code>public</code> — по умолчанию для пользовательских объектов</li>
-					<li><code>pg_catalog</code> — системные таблицы PostgreSQL</li>
-					<li><code>information_schema</code> — стандартный SQL-интерфейс к метаданным</li>
-					<li><code>pg_toast</code> — хранение больших объектов</li>
-					<li><code>pg_temp</code> — временные таблицы (внутри <code>pg_temp_N</code>)</li>
-				</ul>
-				<p>Посмотреть схемы: <code>SELECT * FROM pg_namespace;</code></p>
-				</aside>
-
-				<section>
-					<img src="images/ns.png" alt="" class="r-stretch">
-				</section>
-
-				</section>
-
-				<section>
-					<p style="font-size: 24px;">При инициализации кластера создаются два табличных пространства:</p>
-					<ul style="font-size: 15px; text-decoration: none;">
-						<li><b>pg_default</b> располагается в каталоге PGDATA/base и используется как табличное пространство по умолчанию, <br>если явно не выбрать для этой цели другое пространство;</li>
-						<li><b>pg_global</b> располагается в каталоге PGDATA/global и хранит общие для всего кластера объекты системного каталога.</li>
-					</ul>
-					<img src="images/namespace.png" alt="" style="height: 500px;">
-				</section>
-			
-
-				<section>
-					<pre>
+   <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+      <title>Как хранятся данные в PostgreSQL?</title>
+      <link rel="stylesheet" href="dist/reset.css">
+      <link rel="stylesheet" href="dist/reveal.css">
+      <link rel="stylesheet" href="dist/theme/black.css">
+      <!-- Theme used for syntax highlighted code -->
+      <link rel="stylesheet" href="plugin/highlight/monokai.css">
+      <style>
+         img{
+         height: auto;
+         width: 75%;
+         }
+      </style>
+   </head>
+   <body>
+      <div class="reveal" id="tsparticles">
+         <div class="slides" >
+            <section>Как хранятся данные в PostgreSQL?</section>
+            <section>
+               <p style="font-size: 24px;">QR код на сайт</p>
+               <img src="images/qr.png" alt="" class="r-stretch">
+            </section>
+            <section>
+               <p style="font-size: 24px;">Устройство PGDATA</p>
+               <img src="images/pgdata.png" alt="" >
+            </section>
+            <section>
+               <p style="font-size: 20px;">
+                  template0 используется, например, для восстановления из логической резервной копии или для создания базы в другой кодировке и никогда не
+                  должна меняться;<br>
+                  template1 служит шаблоном для всех остальных баз данных, которые может
+                  создать пользователь в этом кластере;<br>
+                  postgres представляет собой обычную базу данных, которую можно использовать по своему усмотрению.
+               </p>
+               <img src="images/cluster.png" alt="">
+               <aside class="notes">
+                  <p><strong>Кластер PostgreSQL</strong> — это набор всех баз данных и служебных файлов, размещённых в каталоге <strong>PGDATA</strong>, указанном через одноимённую переменную окружения.</p>
+                  <p><strong>Базы данных по умолчанию</strong></p>
+                  <ul>
+                     <li><code>template0</code> — неизменяемая, используется для восстановления и смены кодировки.</li>
+                     <li><code>template1</code> — шаблон для всех новых баз данных.</li>
+                     <li><code>postgres</code> — обычная база данных для использования по умолчанию.</li>
+                  </ul>
+                  Поскольку для выполнения команды CREATE DATABASE необходимо подключение к серверу базы данных, возникает вопрос как создать самую первую базу данных. Первая база данных всегда создаётся командой initdb при инициализации пространства хранения данных (см. документацию.) Эта база данных называется postgres. Далее для создания первой «обычной» базы данных можно подключиться к postgres.
+                  База данных postgres используется пользователями и приложениями для подключения по умолчанию. Представляет собой всего лишь копию template1, и может быть удалена и повторно создана при необходимости.
+                  Две дополнительные базы данных template1 и template0 также создаются во время инициализации кластера. При каждом создании новой базы данных в рамках кластера по факту производится клонирование шаблона template1. При этом любые изменения, сделанные в template1, распространяются на все созданные впоследствии базы данных. Следует избегать создания объектов в template1, за исключением ситуации, когда их необходимо автоматически добавлять в новые базы. База template0 представляет собой чистую копию исходного содержимого template1. Поэтому её можно клонировать вместо template1, когда важно создать базу данных без каких‑либо локальных дополнений.
+               </aside>
+            </section>
+            <section>
+               <p style="font-size: 24px;"><code>CREATE database users;</code></p>
+               <img src="images/crdb.png" alt="">
+               <aside class="notes">
+                  <p><strong>CREATE DATABASE</strong> выполняет копирование существующей базы данных.</p>
+                  <p>По умолчанию копируется <code>template1</code>.</p>
+               </aside>
+            </section>
+            <section>
+               <p style="font-size: 24px;"><code>CREATE DATABASE new TEMPLATE users;</code></p>
+               <img src="images/crcopy.png" alt="">
+               <aside class="notes">
+                  <p><code>template0</code> — вторая системная база, изначально совпадает с <code>template1</code>, но не изменяется после инициализации.</p>
+                  <p>Если указать <code>template0</code> при <code>CREATE DATABASE</code>, создаётся "чистая" база — без пользовательских объектов.</p>
+                  <p>Можно использовать любую существующую базу в качестве шаблона:</p>
+               </aside>
+            </section>
+            <section>
+               <p style="font-size: 24px;">Системный каталог</p>
+               <img src="images/system-catalogs.png" alt="">
+               <aside class="notes">
+                  <p>Системные каталоги содержат метаданные базы данных (таблицы, столбцы и др.).</p>
+                  <p>Это обычные таблицы, но модифицировать их вручную не рекомендуется — используйте SQL-команды.</p>
+                  <p>Например, <code>CREATE DATABASE</code> добавляет запись в <code>pg_database</code>.</p>
+                  <p>Каждая база данных имеет свой набор системных каталогов, но есть и общие для всего кластера (с ID 0).</p>
+               </aside>
+            </section>
+            <section>
+               <p style="font-size: 24px;">Schema (namespace)</p>
+               <img src="images/schema.png" alt="">
+               <aside class="notes">
+                  <p>Схемы — пространства имён внутри базы данных. Хранят таблицы, типы, функции и др.</p>
+                  <p>База может содержать несколько схем.</p>
+                  <p>Одни и те же имена объектов допустимы в разных схемах и базах данных.</p>
+               </aside>
+            </section>
+            <section>
+               <p style="font-size: 24px;">Кроме пользовательских схем, имеется несколько специальных служебных:</p>
+               <img src="images/scheme2.png" alt="" style="height: 600px;">
+               <aside class="notes">
+                  <p>Кроме пользовательских, есть специальные схемы:</p>
+                  <ul>
+                     <li><code>public</code> — по умолчанию для пользовательских объектов</li>
+                     <li><code>pg_catalog</code> — системные таблицы PostgreSQL</li>
+                     <li><code>information_schema</code> — стандартный SQL-интерфейс к метаданным</li>
+                     <li><code>pg_toast</code> — хранение больших объектов</li>
+                     <li><code>pg_temp</code> — временные таблицы (внутри <code>pg_temp_N</code>)</li>
+                  </ul>
+                  <p>Посмотреть схемы: <code>SELECT * FROM pg_namespace;</code></p>
+               </aside>
+               <section>
+                  <img src="images/ns.png" alt="" class="r-stretch">
+               </section>
+            </section>
+            <section>
+               <p style="font-size: 24px;">При инициализации кластера создаются два табличных пространства:</p>
+               <ul style="font-size: 15px; text-decoration: none;">
+                  <li><b>pg_default</b> располагается в каталоге PGDATA/base и используется как табличное пространство по умолчанию, <br>если явно не выбрать для этой цели другое пространство;</li>
+                  <li><b>pg_global</b> располагается в каталоге PGDATA/global и хранит общие для всего кластера объекты системного каталога.</li>
+               </ul>
+               <img src="images/namespace.png" alt="" style="height: 500px;">
+            </section>
+            <section>
+               <pre>
 						<code data-trim data-noescape>
 							CREATE TABLESPACE fastspace LOCATION '/ssd1/postgresql/data';
 							CREATE INDEX code_idx ON films (code) TABLESPACE fastspace;
 						</code>
 					</pre>
-					<img src="images/new_tablespace.png" alt="" style="height: 500px;">
-					<aside class="notes">
-					<p>Табличные пространства — это физические каталоги, в которых размещаются данные PostgreSQL.</p>
-					<p>Отличаются от логической структуры (базы, схемы).</p>
-					<p>Можно создавать собственные табличные пространства:</p>
-					<pre><code>CREATE TABLESPACE fastspace LOCATION '/ssd1/postgresql/data';</code></pre>
-					<p>По умолчанию используются:</p>
-					<ul>
-						<li><code>pg_default</code> — для обычных объектов</li>
-						<li><code>pg_global</code> — для системных объектов кластера</li>
-					</ul>
-					</aside>
-				</section>
-
-				<section>
-					<img src="images/layers.png" alt="">
-				</section>
-
-				<section>
-					<img src="images/main-layers.png">
-				</section>
-				
-				<section>
-					<p style="font-size: 24px;">Небольшой эксперимент</p>
-					<pre style="font-size: 15px;">
+               <img src="images/new_tablespace.png" alt="" style="height: 500px;">
+               <aside class="notes">
+                  <p>Табличные пространства — это физические каталоги, в которых размещаются данные PostgreSQL.</p>
+                  <p>Отличаются от логической структуры (базы, схемы).</p>
+                  <p>Можно создавать собственные табличные пространства:</p>
+                  <pre><code>CREATE TABLESPACE fastspace LOCATION '/ssd1/postgresql/data';</code></pre>
+                  <p>По умолчанию используются:</p>
+                  <ul>
+                     <li><code>pg_default</code> — для обычных объектов</li>
+                     <li><code>pg_global</code> — для системных объектов кластера</li>
+                  </ul>
+               </aside>
+            </section>
+            <section>
+               <img src="images/layers.png" alt="">
+            </section>
+            <section>
+               <img src="images/main-layers.png">
+            </section>
+            <section>
+               <p style="font-size: 24px;">Небольшой эксперимент</p>
+               <pre style="font-size: 15px;">
 						<code data-trim data-noescape>
 							CREATE TABLE IF NOT EXISTS test_table (
 								id SERIAL PRIMARY KEY,
@@ -177,10 +153,9 @@
 							FROM generate_series(1, 99) AS gs;
 						</code>
 					</pre>
-				</section>
-
-				<section>
-					<pre style="font-size: 15px;">
+            </section>
+            <section>
+               <pre style="font-size: 15px;">
 						<code data-trim data-noescape>
 							postgres=# SELECT * FROM pg_database WHERE datname = 'postgres'\gx
 							-[ RECORD 1 ]--+------------
@@ -204,11 +179,9 @@
 							datacl         | 
 						</code>
 					</pre>
-				</section>
-				
-
-				<section>
-					<pre style="font-size: 15px;">
+            </section>
+            <section>
+               <pre style="font-size: 15px;">
 						<code data-trim data-noescape>
 							postgres=# SELECT * FROM pg_class where relname = 'test_table'\gx
 							-[ RECORD 1 ]-------------------------
@@ -248,11 +221,10 @@
 
 						</code>
 					</pre>
-				</section>
-
-				<section>
-			<h2>Формат pg_filenode.map</h2>
-				<pre style="font-size: 15px;">
+            </section>
+            <section>
+               <h2>Формат pg_filenode.map</h2>
+               <pre style="font-size: 15px;">
 					<code data-trim data-noescape>
 			// src/backend/utils/cache/relmapper.c:165 RelationMapOidToFilenumber()
 			typedef struct RelMapping
@@ -271,10 +243,10 @@
 			};
 					</code>
 				</pre>
-			</section>
-				<section>
-					<p style="font-size: 24px;">Узнаем путь к отношению через sql</p>
-					<pre style="font-size: 15px;">
+            </section>
+            <section>
+               <p style="font-size: 24px;">Узнаем путь к отношению через sql</p>
+               <pre style="font-size: 15px;">
 						<code data-trim data-noescape>
 							# src/backend/utils/adt/dbsize.c:969 pg_relation_filepath
 							postgres=# select pg_relation_filepath('test_table');
@@ -284,21 +256,18 @@
 							(1 row)	
 						</code>
 					</pre>
-				</section>
-
-				<section>
-					<h1 style="font-size: 30px;">Table</h1>
-					<img src="images/table_file.png" alt="">
-				</section>
-
-				<section>
-					<h1 style="font-size: 30px;">Heap</h1>
-					<img src="images/heap_file_page.png" alt="">
-				</section>
-
-				<section>
-					<h1 class="r-fit-text"></h1>
-					<pre style="font-size: 18px;">
+            </section>
+            <section>
+               <h1 style="font-size: 30px;">Table</h1>
+               <img src="images/table_file.png" alt="">
+            </section>
+            <section>
+               <h1 style="font-size: 30px;">Heap</h1>
+               <img src="images/heap_file_page.png" alt="">
+            </section>
+            <section>
+               <h1 class="r-fit-text"></h1>
+               <pre style="font-size: 18px;">
 						<code data-trim data-noescape>
 							// src/include/storage/itemid.h
 							typedef struct ItemIdData
@@ -317,16 +286,13 @@
 							} BlockIdData;
 						</code>
 					</pre>
-				</section>
-				
-
-				<section>
-					<p style="font-size: 24px;">Устройство tuple</p>
-					<img src="images/page_structure.png" alt="">
-				</section>
-
-				<section>
-					<pre style="font-size: 18px;">
+            </section>
+            <section>
+               <p style="font-size: 24px;">Устройство tuple</p>
+               <img src="images/page_structure.png" alt="">
+            </section>
+            <section>
+               <pre style="font-size: 18px;">
 						<code data-trim data-noescape>
 							// src/include/storage/bufpage.h
 							typedef struct PageHeaderData
@@ -345,15 +311,13 @@
 							} PageHeaderData;
 						</code>
 					</pre>
-				</section>
-
-				<section>
-					<h1 style="font-size: 30px;">Обращение к куче при запросах</h1>
-					<img src="images/data_read.png" alt="">
-				</section>
-
-				<section>
-					<pre style="font-size: 15px;">
+            </section>
+            <section>
+               <h1 style="font-size: 30px;">Обращение к куче при запросах</h1>
+               <img src="images/data_read.png" alt="">
+            </section>
+            <section>
+               <pre style="font-size: 15px;">
 						<code data-trim data-noescape>
 							SELECT ctid, xmin, xmax, * FROM test_table;
 							ctid   | xmin | xmax |  ctid   | id  |           text_column            
@@ -365,10 +329,9 @@
 		
 						</code>
 					</pre>
-				</section>
-
-				<section>
-					<pre style="font-size: 15px;">
+            </section>
+            <section>
+               <pre style="font-size: 15px;">
 						<code data-trim data-noescape>
 							postgres=# UPDATE test_table SET text_column = 'HELLO WORLD2' WHERE id = 2;
 							postgres=# SELECT ctid, xmin, xmax, * FROM test_table ORDER BY id;
@@ -381,10 +344,9 @@
 							
 						</code>
 					</pre>
-				</section>
-
-				<section>
-					<pre style="font-size: 15px;">
+            </section>
+            <section>
+               <pre style="font-size: 15px;">
 						<code data-trim data-noescape>
 							SELECT * FROM page_header(get_raw_page('public.test_table', 0));
 							lsn    | checksum | flags | lower | upper | special | pagesize | version | prune_xid 
@@ -394,26 +356,22 @@
 
 						</code>
 					</pre>
-
-					<aside class="notes">
-						<ul>
-							<li><strong>lsn</strong>: Log Sequence Number (LSN) - уникальный идентификатор, используемый для отслеживания состояния журнала изменений. В данном случае, значение "0/15B1450" означает определенную позицию в журнале транзакций.</li>
-							<li><strong>checksum</strong>: Контрольная сумма - значение, используемое для проверки целостности страницы данных. Значение "0" указывает на отсутствие ошибки при проверке целостности.</li>
-							<li><strong>flags</strong>: Флаги - специальные маркеры, указывающие на различные состояния страницы. Значение "0" означает, что флаги не установлены.</li>
-							<li><strong>lower</strong>: Нижняя граница свободного пространства - смещение, указывающее начало свободного пространства на странице. Значение "428" означает, что свободное пространство начинается с байта 428.</li>
-							<li><strong>upper</strong>: Верхняя граница свободного пространства - смещение, указывающее конец свободного пространства на странице. Значение "1768" означает, что свободное пространство заканчивается на байте 1768.</li>
-							<li><strong>special</strong>: Специальная область - смещение, указывающее начало специальной области на странице. Обычно используется для хранения служебной информации. Значение "8192" означает, что специальная область начинается с байта 8192.</li>
-							<li><strong>pagesize</strong>: Размер страницы - общий размер страницы данных в байтах. Значение "8192" указывает, что размер страницы составляет 8192 байта.</li>
-							<li><strong>version</strong>: Версия страницы - версия формата страницы. Значение "4" указывает на использование четвертой версии формата страницы.</li>
-							<li><strong>prune_xid</strong>: Преимущественный идентификатор транзакции для очистки - идентификатор транзакции, до которой были обрезаны старые данные. Значение "754" означает, что все транзакции до 754 были очищены или обрезаны.</li>
-						  </ul>
-						  
-					</aside>
-				</section>
-
-
-				<section>
-					<pre style="font-size: 15px;">
+               <aside class="notes">
+                  <ul>
+                     <li><strong>lsn</strong>: Log Sequence Number (LSN) - уникальный идентификатор, используемый для отслеживания состояния журнала изменений. В данном случае, значение "0/15B1450" означает определенную позицию в журнале транзакций.</li>
+                     <li><strong>checksum</strong>: Контрольная сумма - значение, используемое для проверки целостности страницы данных. Значение "0" указывает на отсутствие ошибки при проверке целостности.</li>
+                     <li><strong>flags</strong>: Флаги - специальные маркеры, указывающие на различные состояния страницы. Значение "0" означает, что флаги не установлены.</li>
+                     <li><strong>lower</strong>: Нижняя граница свободного пространства - смещение, указывающее начало свободного пространства на странице. Значение "428" означает, что свободное пространство начинается с байта 428.</li>
+                     <li><strong>upper</strong>: Верхняя граница свободного пространства - смещение, указывающее конец свободного пространства на странице. Значение "1768" означает, что свободное пространство заканчивается на байте 1768.</li>
+                     <li><strong>special</strong>: Специальная область - смещение, указывающее начало специальной области на странице. Обычно используется для хранения служебной информации. Значение "8192" означает, что специальная область начинается с байта 8192.</li>
+                     <li><strong>pagesize</strong>: Размер страницы - общий размер страницы данных в байтах. Значение "8192" указывает, что размер страницы составляет 8192 байта.</li>
+                     <li><strong>version</strong>: Версия страницы - версия формата страницы. Значение "4" указывает на использование четвертой версии формата страницы.</li>
+                     <li><strong>prune_xid</strong>: Преимущественный идентификатор транзакции для очистки - идентификатор транзакции, до которой были обрезаны старые данные. Значение "754" означает, что все транзакции до 754 были очищены или обрезаны.</li>
+                  </ul>
+               </aside>
+            </section>
+            <section>
+               <pre style="font-size: 15px;">
 						<code data-trim data-noescape>
 							SELECT t_attrs
 							FROM heap_page_item_attrs(get_raw_page('test_table', 0), 'test_table'::regclass, true);
@@ -433,19 +391,17 @@
 							(101 rows)
 						</code>
 					</pre>
-				</section>
-
-				<section>
-					<ul>
-						<li>tuple = header + user data</li>
-						<li>DELETE = UPDATE xmax</li>
-						<li>UPDATE = INSERT + DELETE</li>
-					</ul>
-				</section>
-
-				<section>
-				<p style="font-size: 24px;">Вставка данных в Page</p>
-				<pre style="font-size: 14px;">
+            </section>
+            <section>
+               <ul>
+                  <li>tuple = header + user data</li>
+                  <li>DELETE = UPDATE xmax</li>
+                  <li>UPDATE = INSERT + DELETE</li>
+               </ul>
+            </section>
+            <section>
+               <p style="font-size: 24px;">Вставка данных в Page</p>
+               <pre style="font-size: 14px;">
 				<code data-trim data-noescape>
 				// src/backend/storage/page/bufpage.c
 
@@ -506,47 +462,42 @@
 				}
 				</code>
 				</pre>
-				<aside class="notes">
-					Ключевая логика вставки кортежа на страницу: проверка границ, поиск позиции, проверка вместимости, возможный сдвиг line pointers, установка метаданных и копирование данных.
-				</aside>
-				</section>
-
-				<section>
-					<img src="images/toast-meme.jpeg" alt="" style="height: 600px;">
-				</section>
-
-				<section>
-					<img src="images/toast_chunks.png" alt="" >
-				</section>
-
-				<section>
-					<h1 style="font-size: 30px;">Стратегии хранения</h1>
-					<ul class="r-fit-text">
-						<li>PLAIN(bool, char..)</li>
-						<li>EXTENDED(TOAST включён: TEXT, JSONB, ...)</li>
-						<li>EXTERNAL = EXTENDED - сжатие(по умолчанию не используется)</li>
-						<li>Main - Сжимать данные, но пытаться хранить их в самом кортеже</li>
-					</ul>
-					<pre style="font-size: 15px;">
-						<code data-trim data-noescape>
-							ALTER TABLE table_name ALTER COLUMN name SET STORAGE external;		
-							ALTER TABLE table_name ALTER COLUMN name SET COMPRESSION lz4;
-						</code>
-				</section>
-
-				<section>
-					<h1 style="font-size: 30px;">Алгоритм в 4 прохода</h1>
-					<ol class="r-fit-text">
-						<li>Только для EXTENDED и EXTERNAL атрибутов. EXTENDED атрибуты сжимаются. Если размер атрибута превышает 2 Кб, он нарезается в TOAST-таблицу;</li>
-						<li>Только для EXTENDED и EXTERNAL атрибутов. В этот раз все атрибуты нарезаются в TOAST-таблицу, безотносительно их размера;</li>
-						<li>Только для MAIN атрибутов. Они сжимаются, но не нарезаются в TOAST-таблицу;</li>
-						<li>Только для MAIN атрибутов. Если дело дошло до этого прохода, значит мы в беде. MAIN атрибуты нарезаются в TOAST-таблицу;</li>
-					</ol>
-					<a class="r-fit-text" href="https://github.com/postgres/postgres/blob/master/src/backend/access/heap/heaptoast.c#L96"> src/backend/access/heap/heaptoast.c  heap_toast_insert_or_update()</a>
-				</section>
-
-				<section>
-					<pre style="font-size: 15px;">
+               <aside class="notes">
+                  Ключевая логика вставки кортежа на страницу: проверка границ, поиск позиции, проверка вместимости, возможный сдвиг line pointers, установка метаданных и копирование данных.
+               </aside>
+            </section>
+            <section>
+               <img src="images/toast-meme.jpeg" alt="" style="height: 600px;">
+            </section>
+            <section>
+               <img src="images/toast_chunks.png" alt="" >
+            </section>
+            <section>
+               <h1 style="font-size: 30px;">Стратегии хранения</h1>
+               <ul class="r-fit-text">
+                  <li>PLAIN(bool, char..)</li>
+                  <li>EXTENDED(TOAST включён: TEXT, JSONB, ...)</li>
+                  <li>EXTERNAL = EXTENDED - сжатие(по умолчанию не используется)</li>
+                  <li>Main - Сжимать данные, но пытаться хранить их в самом кортеже</li>
+               </ul>
+               <pre style="font-size: 15px;">
+               <code data-trim data-noescape>
+               ALTER TABLE table_name ALTER COLUMN name SET STORAGE external;		
+               ALTER TABLE table_name ALTER COLUMN name SET COMPRESSION lz4;
+               </code>
+            </section>
+            <section>
+               <h1 style="font-size: 30px;">Алгоритм в 4 прохода</h1>
+               <ol class="r-fit-text">
+                  <li>Только для EXTENDED и EXTERNAL атрибутов. EXTENDED атрибуты сжимаются. Если размер атрибута превышает 2 Кб, он нарезается в TOAST-таблицу;</li>
+                  <li>Только для EXTENDED и EXTERNAL атрибутов. В этот раз все атрибуты нарезаются в TOAST-таблицу, безотносительно их размера;</li>
+                  <li>Только для MAIN атрибутов. Они сжимаются, но не нарезаются в TOAST-таблицу;</li>
+                  <li>Только для MAIN атрибутов. Если дело дошло до этого прохода, значит мы в беде. MAIN атрибуты нарезаются в TOAST-таблицу;</li>
+               </ol>
+               <a class="r-fit-text" href="https://github.com/postgres/postgres/blob/master/src/backend/access/heap/heaptoast.c#L96"> src/backend/access/heap/heaptoast.c  heap_toast_insert_or_update()</a>
+            </section>
+            <section>
+               <pre style="font-size: 15px;">
 						<code data-trim data-noescape>
 							postgres=# SELECT typname, typlen, typstorage 
 							FROM pg_type LIMIT 3;
@@ -557,11 +508,9 @@
 							 char                                   |      1 | p							
 						</code>
 					</pre>
-				</section>
-
-
-				<section>
-					<pre style="font-size: 15px;">
+            </section>
+            <section>
+               <pre style="font-size: 15px;">
 						<code data-trim data-noescape>
 							postgres=# SELECT relname
 							FROM pg_class
@@ -573,10 +522,9 @@
 							(0 rows)
 						</code>
 					</pre>
-				</section>
-				
-				<section>
-					<pre style="font-size: 15px;">
+            </section>
+            <section>
+               <pre style="font-size: 15px;">
 						<code data-trim data-noescape>
 							SELECT relnamespace::regnamespace, relname
 							FROM pg_class WHERE oid = (
@@ -587,10 +535,9 @@
 							pg_toast     | pg_toast_16434
 						</code>
 					</pre>
-				</section>
-
-				<section>
-					<pre style="font-size: 15px;">
+            </section>
+            <section>
+               <pre style="font-size: 15px;">
 						<code data-trim data-noescape>
 							postgres=# UPDATE test_table                           
 							SET text_column = (
@@ -601,10 +548,9 @@
 
 						</code>
 					</pre>
-				</section>
-
-				<section>
-					<pre style="font-size: 15px;">
+            </section>
+            <section>
+               <pre style="font-size: 15px;">
 						<code data-trim data-noescape>
 							SELECT chunk_id,
 							chunk_seq,
@@ -624,30 +570,22 @@
 								16757 |         0 |   1996 | MBDOFXFDIG...GVQLXBIKSD
 						</code>
 					</pre>
-				</section>
-
-
-
-
-				<section>
-					<h2 class="r-fit-text">Карта видимости(visibility map)</h2>
-				</section>
-				
-				<section>
-					<img src="images/vm.png" alt="">
-				</section>
-
-				<section>
-					<h3 class="r-fit-text">на каждую табличную страницу в слое определены два бита:</h3>
-					<ol style="font-size: 24px;">
-						<li>Страницы, которые содержат только актуальные версии строк.</li>
-						<li>Все версии строк заморожены.</li>
-					  </ol>
-					  	
-					  <p class="r-fit-text">Страницы карты видимости представляют собой обычные страницы с заголовком PageHeaderData. Работа с ними осуществляется через разделяемые буферы, как и с обычными страницами. Разница лишь в том, что в VM за заголовком лежит битовая маска, а не кортежи с массивом ItemIdData.</p>
-					  <p class="r-fit-text">VM оптимизирует работу VACUUM, помечая некоторые страницы "полностью видимыми" (проставлена единица в битовой карте). В такие страницы VACUUM не заходит при сканировании таблицы. Бит видимости проставляется при выполнении VACUUM и снимается при выполнении операций INSERT, UPDATE, DELETE.</p>
-					
-					<pre style="font-size: 20px;">
+            </section>
+            <section>
+               <h2 class="r-fit-text">Карта видимости(visibility map)</h2>
+            </section>
+            <section>
+               <img src="images/vm.png" alt="">
+            </section>
+            <section>
+               <h3 class="r-fit-text">на каждую табличную страницу в слое определены два бита:</h3>
+               <ol style="font-size: 24px;">
+                  <li>Страницы, которые содержат только актуальные версии строк.</li>
+                  <li>Все версии строк заморожены.</li>
+               </ol>
+               <p class="r-fit-text">Страницы карты видимости представляют собой обычные страницы с заголовком PageHeaderData. Работа с ними осуществляется через разделяемые буферы, как и с обычными страницами. Разница лишь в том, что в VM за заголовком лежит битовая маска, а не кортежи с массивом ItemIdData.</p>
+               <p class="r-fit-text">VM оптимизирует работу VACUUM, помечая некоторые страницы "полностью видимыми" (проставлена единица в битовой карте). В такие страницы VACUUM не заходит при сканировании таблицы. Бит видимости проставляется при выполнении VACUUM и снимается при выполнении операций INSERT, UPDATE, DELETE.</p>
+               <pre style="font-size: 20px;">
 						<code data-trim data-noescape>
 							// src/backend/access/heap/visibilitymap.cСтраницы карты видимости представляют собой обычные страницы с заголовком PageHeaderData. Работа с ними осуществляется через разделяемые буферы, как и с обычными страницами. Разница лишь в том, что в VM за заголовком лежит битовая маска, а не кортежи с массивом ItemIdData.
 							/* Masks for counting subsets of bits in the visibility map. */
@@ -655,11 +593,10 @@
 							#define FROZEN_MASK8	(0xaa)	/* The upper bit of each bit pair */
 						</code>
 					</pre>
-				</section>
-
-				<section>
-					<p style="font-size: 24px;">Интерфейс visibility map</p>
-					<pre style="font-size: 18px;">
+            </section>
+            <section>
+               <p style="font-size: 24px;">Интерфейс visibility map</p>
+               <pre style="font-size: 18px;">
 						<code data-trim data-noescape>
 							// src/backend/access/heap/visibilitymap.c
 							* INTERFACE ROUTINES
@@ -673,11 +610,10 @@
 							*			prepare for truncation of the visibility map
 						</code>
 					</pre>
-				</section>
-
-				<section>
-					<p style="font-size: 24px;">Подсчёт битов видимости</p>
-					<pre style="font-size: 15px;">
+            </section>
+            <section>
+               <p style="font-size: 24px;">Подсчёт битов видимости</p>
+               <pre style="font-size: 15px;">
 						<code data-trim data-noescape>
 					void
 					visibilitymap_count(Relation rel, BlockNumber *all_visible, BlockNumber *all_frozen)
@@ -723,21 +659,17 @@
 					}
 						</code>
 					</pre>
-				</section>
-
-				<section>
-					<p style="font-size: 24px;">FreeSpace Map</p>
-					<img src="images/fsm.png" alt="">
-					<p style="font-size: 18px;">
-						Каждая таблица имеет FSM файл ((filenode)_ fsm), который хранит информацию о свободном месте, доступном в таблице. Информация в этом файле обновляется такими операциями, как VACUUM и вообще говоря может быть не абсолютно точной. FSM показывает, какие элементы были удалены или обновлены и их место может быть повторно переиспользовано. Данные в FSM организованы в виде дерева (в листьях хранится число свободных элементов на странице), чтобы можно было быстро найти страницу с требуемым числом свободных элементов.
-					</p>
-				</section>
-
-				
-			
-				<section>
-					<p style="font-size: 24px;">Вставляем строчки в таблицу напрямую</p>
-					<pre style="font-size: 15px;">
+            </section>
+            <section>
+               <p style="font-size: 24px;">FreeSpace Map</p>
+               <img src="images/fsm.png" alt="">
+               <p style="font-size: 18px;">
+                  Каждая таблица имеет FSM файл ((filenode)_ fsm), который хранит информацию о свободном месте, доступном в таблице. Информация в этом файле обновляется такими операциями, как VACUUM и вообще говоря может быть не абсолютно точной. FSM показывает, какие элементы были удалены или обновлены и их место может быть повторно переиспользовано. Данные в FSM организованы в виде дерева (в листьях хранится число свободных элементов на странице), чтобы можно было быстро найти страницу с требуемым числом свободных элементов.
+               </p>
+            </section>
+            <section>
+               <p style="font-size: 24px;">Вставляем строчки в таблицу напрямую</p>
+               <pre style="font-size: 15px;">
 						<code data-trim data-noescape>
 							#include "postgres.h"
 							#include "fmgr.h"
@@ -791,128 +723,118 @@
 							}
 						</code>
 					</pre>
-				</section>
-
-				<section>
-					<p style="font-size: 24px;">Задача - Access Scan Column HEAP</p>
-					<section>
-						<pre style="font-size: 15px;">
+            </section>
+            <section>
+               <p style="font-size: 24px;">Задача - Access Scan Column HEAP</p>
+               <section>
+                  <pre style="font-size: 15px;">
 							<code data-trim data-noescape>
 								SELECT access_scan_column('table_name'::regclass, 'column_name');
 							</code>
 						</pre>
-						<img src="images/exptected.png" alt="">
-					</section>
-				</section>
-
-				<section>
-					<p style="font-size: 24px;">Задача - Access Scan Column HEAP</p>
-					<ul class="r-fit-text">
-						<li>PG_GETARG_OID, PG_GETARG_TEXT_PP</li>
-						<li>text_to_cstring</li>
-						<li>relation_open, RelationGetDescr</li>
-						<li>SPI_fnumber или цикл по RelationGetDescr->natts TupleDescAttr и сверка с column_name</li>
-						<li>table_beginscan, heap_getnext, heap_getattr(column_number)</li>
-						<li>elog, TextDatumGetCString, DatumGetInt32</li>
-						<li>table_endscan, relation_close</li>
-					</ul>
-				</section>
-
-				<section>
-				<p style="font-size: 24px;">Стою на плечах</p>
-				<ul style="font-size: 22px;">
-					<li>
-					<a href="https://habr.com/ru/articles/813781/" target="_blank">
-						Игорь Руденко — «Как устроен PostgreSQL» (Habr, 2024)
-					</a>
-					</li>
-					<li>
-					<a href="https://www.youtube.com/playlist?list=PLa_6mrlGC27Rn9_WMmtsV7JsysIIvv7Qj" target="_blank">
-						Андрей Бородин — курс Hacking PostgreSQL (YouTube)
-					</a>
-					</li>
-					<li>
-					<a href="https://postgrespro.ru/education/courses/hacking" target="_blank">
-						Курс PostgreSQL Hacking от Postgres Pro (Лубенникова и др.)
-					</a>
-					</li>
-					<li>
-						<a href="https://habr.com/ru/articles/842520/" target="_blank">
-							Михаил Гилёв (o4ina) — «Подводные камни карты видимости в PostgreSQL» (Habr, 2024)
-						</a>
-					</li>
-
-					<li>
-						<a href="PostgreSQL 17 изнутри" target="_blank">
-							Егор Рогов — «PostgreSQL 17 изнутри» (книга, 2025)
-						</a>
-					</li>
-				</ul>
-				</section>
-
-
-				<section>
-					<img src="images/wd-40-projects-1.png" alt="">
-					<img src="images/wd-40-projects-2.png" alt="">
-				</section>
-
-			</div>
-		</div>
-
-		<script src="dist/reveal.js"></script>
-		<script src="plugin/notes/notes.js"></script>
-		<script src="plugin/markdown/markdown.js"></script>
-		<script src="plugin/highlight/highlight.js"></script>
-		<script>
-			// More info about initialization & config:
-			// - https://revealjs.com/initialization/
-			// - https://revealjs.com/config/
-			Reveal.initialize({
-				hash: true,
-				slideNumber: true,
-
-				// Learn about plugins: https://revealjs.com/plugins/
-				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
-			});
-		</script>
-
-<script src="https://cdn.jsdelivr.net/npm/tsparticles@1.15.1/dist/tsparticles.min.js"></script>
-<script>
-tsParticles.load("tsparticles", {
-  particles: {
-    number: {
-      value: 30
-    },
-    shape: {
-      type: "image",
-      image: [
-        {
-          src: "https://upload.wikimedia.org/wikipedia/commons/2/29/Postgresql_elephant.svg",
-          width: 32,
-          height: 32
-        }
-      ]
-    },
-    size: {
-      value: 20,
-      random: true
-    },
-    move: {
-      enable: true,
-      speed: 1
-    },
-    links: {
-      enable: true,
-      distance: 150,
-      color: "#ffffff",
-      opacity: 0.3
-    }
-  },
-  background: {
-    color: "#121212"
-  }
-});
-</script>
-
-	</body>
+                  <img src="images/exptected.png" alt="">
+               </section>
+            </section>
+            <section>
+               <p style="font-size: 24px;">Задача - Access Scan Column HEAP</p>
+               <ul class="r-fit-text">
+                  <li>PG_GETARG_OID, PG_GETARG_TEXT_PP</li>
+                  <li>text_to_cstring</li>
+                  <li>relation_open, RelationGetDescr</li>
+                  <li>SPI_fnumber или цикл по RelationGetDescr->natts TupleDescAttr и сверка с column_name</li>
+                  <li>table_beginscan, heap_getnext, heap_getattr(column_number)</li>
+                  <li>elog, TextDatumGetCString, DatumGetInt32</li>
+                  <li>table_endscan, relation_close</li>
+               </ul>
+            </section>
+            <section>
+               <p style="font-size: 24px;">Стою на плечах</p>
+               <ul style="font-size: 22px;">
+                  <li>
+                     <a href="https://habr.com/ru/articles/813781/" target="_blank">
+                     Игорь Руденко — «Как устроен PostgreSQL» (Habr, 2024)
+                     </a>
+                  </li>
+                  <li>
+                     <a href="https://www.youtube.com/playlist?list=PLa_6mrlGC27Rn9_WMmtsV7JsysIIvv7Qj" target="_blank">
+                     Андрей Бородин — курс Hacking PostgreSQL (YouTube)
+                     </a>
+                  </li>
+                  <li>
+                     <a href="https://postgrespro.ru/education/courses/hacking" target="_blank">
+                     Курс PostgreSQL Hacking от Postgres Pro (Лубенникова и др.)
+                     </a>
+                  </li>
+                  <li>
+                     <a href="https://habr.com/ru/articles/842520/" target="_blank">
+                     Михаил Гилёв (o4ina) — «Подводные камни карты видимости в PostgreSQL» (Habr, 2024)
+                     </a>
+                  </li>
+                  <li>
+                     <a href="PostgreSQL 17 изнутри" target="_blank">
+                     Егор Рогов — «PostgreSQL 17 изнутри» (книга, 2025)
+                     </a>
+                  </li>
+               </ul>
+            </section>
+            <section>
+               <img src="images/wd-40-projects-1.png" alt="">
+               <img src="images/wd-40-projects-2.png" alt="">
+            </section>
+         </div>
+      </div>
+      <script src="dist/reveal.js"></script>
+      <script src="plugin/notes/notes.js"></script>
+      <script src="plugin/markdown/markdown.js"></script>
+      <script src="plugin/highlight/highlight.js"></script>
+      <script>
+         // More info about initialization & config:
+         // - https://revealjs.com/initialization/
+         // - https://revealjs.com/config/
+         Reveal.initialize({
+         	hash: true,
+         	slideNumber: true,
+         
+         	// Learn about plugins: https://revealjs.com/plugins/
+         	plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+         });
+      </script>
+      <script src="https://cdn.jsdelivr.net/npm/tsparticles@1.15.1/dist/tsparticles.min.js"></script>
+      <script>
+         tsParticles.load("tsparticles", {
+           particles: {
+             number: {
+               value: 30
+             },
+             shape: {
+               type: "image",
+               image: [
+                 {
+                   src: "https://upload.wikimedia.org/wikipedia/commons/2/29/Postgresql_elephant.svg",
+                   width: 32,
+                   height: 32
+                 }
+               ]
+             },
+             size: {
+               value: 20,
+               random: true
+             },
+             move: {
+               enable: true,
+               speed: 1
+             },
+             links: {
+               enable: true,
+               distance: 150,
+               color: "#ffffff",
+               opacity: 0.3
+             }
+           },
+           background: {
+             color: "#121212"
+           }
+         });
+      </script>
+   </body>
 </html>
